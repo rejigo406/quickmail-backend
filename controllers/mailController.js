@@ -1,22 +1,23 @@
 const { google } = require('googleapis');
 require('dotenv').config();
 
-const OAuth2Client = new google.auth.OAuth2(
+const oAuth2Client = new google.auth.OAuth2(
   process.env.CLIENT_ID,
   process.env.CLIENT_SECRET,
   process.env.REDIRECT_URI
 );
 
-OAuth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
+oAuth2Client.setCredentials({
+  refresh_token: process.env.REFRESH_TOKEN,
+});
 
-const gmail = google.gmail({ version: 'v1', auth: OAuth2Client });
+const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
 
-exports.getMails = async (req, res) => {
+const getMails = async (req, res) => {
   try {
     const response = await gmail.users.messages.list({
       userId: 'me',
-      labelIds: [process.env.LABEL_ID],
-      maxResults: 20,
+      maxResults: 5,
     });
 
     const messages = response.data.messages || [];
@@ -29,17 +30,18 @@ exports.getMails = async (req, res) => {
       });
 
       mailDetails.push({
-        id: message.id,
+        id: mail.data.id,
         snippet: mail.data.snippet,
-        headers: mail.data.payload.headers.reduce((acc, header) => {
-          acc[header.name] = header.value;
-          return acc;
-        }, {}),
+        from: mail.data.payload.headers.find(h => h.name === 'From')?.value || '',
+        subject: mail.data.payload.headers.find(h => h.name === 'Subject')?.value || '',
       });
     }
 
-    res.status(200).json(mailDetails);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.json(mailDetails);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Failed to fetch mails');
   }
 };
+
+module.exports = { getMails };
